@@ -1,55 +1,83 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
-import qrcode from "qrcode-terminal";
+import express from "express";
+import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import qrcode from "qrcode";
 
-async function connectBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true
-    });
+let qrCodeImage = null;
 
-    sock.ev.on('creds.update', saveCreds);
+// Rota inicial
+app.get("/", (req, res) => {
+  res.send(`
+    <h1>Bot WhatsApp</h1>
+    <p>Clique abaixo para ver o QR Code:</p>
+    <a href="/qr" style="font-size:20px;">➡ Ver QR Code</a>
+  `);
+});
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+// Rota do QR
+app.get("/qr", (req, res) => {
+  if (!qrCodeImage) {
+    return res.send("<h2>Aguardando geração do QR...</h2>");
+  }
 
-        if (qr) {
-            console.log("📌 Escaneie o QR Code abaixo:");
-            qrcode.generate(qr, { small: true });
-        }
+  res.send(`
+    <h1>Escaneie o QR Code no WhatsApp</h1>
+    <img src="${qrCodeImage}" />
+  `);
+});
 
-        if (connection === "close") {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log("Conexão caiu. Reconectando:", shouldReconnect);
-            if (shouldReconnect) connectBot();
-        }
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState("auth_info");
 
-        if (connection === "open") {
-            console.log("🔥 BOT CONECTADO AO WHATSAPP!");
-        }
-    });
+  const { version } = await fetchLatestBaileysVersion();
 
-    sock.ev.on("messages.upsert", async (msg) => {
-        const mensagem = msg.messages[0];
-        if (!mensagem.message) return;
+  const sock = makeWASocket({
+    version,
+    printQRInTerminal: false,
+    auth: state
+  });
 
-        const remetente = mensagem.key.remoteJid;
-        const texto = mensagem.message.conversation || 
-                      mensagem.message.extendedTextMessage?.text || "";
+  // Quando o QR aparecer
+  sock.ev.on("connection.update", async (update) => {
+    const { qr, connection } = update;
 
-        console.log("📩 Mensagem recebida:", texto);
+    if (qr) {
+      console.log("📌 QR gerado! Acesse /qr para escanear.");
+      qrCodeImage = await qrcode.toDataURL(qr);
+    }
 
-        if (texto.toLowerCase() === "oi") {
-            await sock.sendMessage(remetente, { text: "Olá! 👋 Como posso ajudar?" });
-        }
+    if (connection === "open") {
+      console.log("✅ BOT CONECTADO AO WHATSAPP!");
+      qrCodeImage = null; 
+    }
 
-        if (texto.toLowerCase() === "menu") {
-            await sock.sendMessage(remetente, { 
-                text: "Escolha uma opção:\n1️⃣ Vendas\n2️⃣ Produção\n3️⃣ Suporte" 
-            });
-        }
-    });
+    if (connection === "close") {
+      console.log("❌ Conexão perdida. Tentando reconectar...");
+      startBot();
+    }
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  // MENSAGEM AUTOMÁTICA
+  sock.ev.on("messages.upsert", async (msg) => {
+    const message = msg.messages[0];
+    if (!message.message) return;
+
+    const from = message.key.remoteJid;
+    const text = message.message.conversation || message.message.extendedTextMessage?.text;
+
+    if (text) {
+      console.log("Mensagem recebida:", text);
+
+      await sock.sendMessage(from, { text: "Oi! Seu bot está funcionando 😄" });
+    }
+  });
 }
 
-connectBot();
+startBot();
+
+// Mantém a porta aberta para o Render
+app.listen(PORT, () => console.log(`🌐 Servidor Web ativo na porta ${PORT}`));
