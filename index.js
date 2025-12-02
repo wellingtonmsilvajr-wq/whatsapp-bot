@@ -20,6 +20,9 @@ const luis = "5561998535931@s.whatsapp.net";
 // === GERENTE (número principal do bot) ===
 const gerente = "5561998746380@s.whatsapp.net";
 
+// === NOME AUTORIZADO PARA TESTE ===
+const NOME_TESTE = "Wellinton - Jato Luziania";
+
 // === HORÁRIO DE FUNCIONAMENTO === (7h às 17h)
 function dentroDoHorario() {
   const agora = new Date();
@@ -40,15 +43,12 @@ Recebemos sua mensagem e retornaremos assim que possível! 😊
 // SISTEMA DE CLIENTES ATENDIDOS
 // ============================
 
-// Arquivo onde salvamos os clientes já atendidos
 const FILE_ATENDIDOS = "./clientes_atendidos.json";
 
-// Se o arquivo não existir, cria vazio
 if (!fs.existsSync(FILE_ATENDIDOS)) {
   fs.writeFileSync(FILE_ATENDIDOS, JSON.stringify([]));
 }
 
-// Carrega os clientes atendidos
 function carregarClientes() {
   try {
     return JSON.parse(fs.readFileSync(FILE_ATENDIDOS, "utf8"));
@@ -57,7 +57,6 @@ function carregarClientes() {
   }
 }
 
-// Salva o cliente como atendido
 function marcarComoAtendido(numero) {
   const lista = carregarClientes();
   if (!lista.includes(numero)) {
@@ -66,7 +65,6 @@ function marcarComoAtendido(numero) {
   }
 }
 
-// Verifica se já é um cliente antigo
 function clienteJaAtendido(numero) {
   const lista = carregarClientes();
   return lista.includes(numero);
@@ -147,7 +145,13 @@ async function startBot() {
 
     console.log("📩 Mensagem recebida:", texto);
 
-    // EVITAR AUTO-RESPOSTA PARA MENSAGENS DO PRÓPRIO NÚMERO DO BOT
+    // -------------------------------
+    // FILTRO: só responde ao seu nome
+    // -------------------------------
+    const nomeContato = message.pushName || "";
+    if (nomeContato !== NOME_TESTE) return;
+
+    // EVITA AUTO-RESPOSTA PARA O PRÓPRIO NÚMERO DO BOT
     if (from === gerente) return;
 
     // ============================
@@ -156,10 +160,8 @@ async function startBot() {
     const jaAtendido = clienteJaAtendido(from);
 
     if (!jaAtendido) {
-      // Marca como cliente novo
       marcarComoAtendido(from);
 
-      // Envia menu e encerra
       await sock.sendMessage(from, {
         text: `Olá! 👋 Como podemos ajudar?
 
@@ -171,17 +173,13 @@ async function startBot() {
       return;
     }
 
-    // ============================
-    // DAQUI PARA BAIXO É O MENU NORMAL
-    // ============================
-
-    // VERIFICA HORÁRIO
+    // HORÁRIO
     if (!dentroDoHorario()) {
       await sock.sendMessage(from, { text: mensagemForaHorario });
       return;
     }
 
-    // OPÇÃO 1 — ESCOLHER VENDEDOR
+    // OPÇÃO 1
     if (texto === "1") {
       await sock.sendMessage(from, {
         text: `Escolha o vendedor:
@@ -192,7 +190,7 @@ async function startBot() {
       return;
     }
 
-    // OPÇÃO 2 — FINANCEIRO
+    // OPÇÃO 2
     if (texto === "2") {
       await sock.sendMessage(financeiro, {
         text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
@@ -204,19 +202,19 @@ async function startBot() {
       return;
     }
 
-    // OPÇÃO 3 — PRODUÇÃO (GERENTE)
+    // OPÇÃO 3
     if (texto === "3") {
       await sock.sendMessage(gerente, {
         text: `📩 *Nova mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
-        text: "Encaminhei sua mensagem para o setor de produção! 🏭",
+        text: "Encaminhei sua mensagem para a produção! 🏭",
       });
       return;
     }
 
-    // DIRECIONAR — LEIA
+    // LEIA
     if (["1️⃣", "Léia", "Leia", "leia", "léia"].includes(texto)) {
       await sock.sendMessage(leia, {
         text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
@@ -228,7 +226,7 @@ async function startBot() {
       return;
     }
 
-    // DIRECIONAR — LUÍS
+    // LUÍS
     if (["2️⃣", "Luis", "Luís", "luis", "luís"].includes(texto)) {
       await sock.sendMessage(luis, {
         text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
