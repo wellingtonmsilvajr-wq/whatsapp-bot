@@ -4,7 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
-import fs from "fs"; 
+import fs from "fs";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -132,29 +132,47 @@ async function startBot() {
 
   // ============================
   // RECEBENDO MENSAGENS
-// ============================
-sock.ev.on("messages.upsert", async (msg) => {
-    // ... código de extração de texto ...
+  // ============================
+  sock.ev.on("messages.upsert", async (msg) => {
+    const message = msg.messages[0];
+    if (!message.message) return;
 
-    // ADICIONE ESTA LINHA TEMPORARIAMENTE:
+    const from = message.key.remoteJid;
+    const textoOriginal =
+      message.message.conversation ||
+      message.message.extendedTextMessage?.text ||
+      "";
+    const texto = textoOriginal.trim();
+
+    // -------------------------------
+    // LOGS DE DEBUG
+    // -------------------------------
     console.log(`[DEBUG] JID do Remetente (from): ${from}`);
+    console.log(`[DEBUG] JID ESPERADO (JID_TESTE): ${JID_TESTE}`);
     console.log("📩 Mensagem recebida:", texto);
 
-    // -------------------------------
-    // FILTRO: só responde ao seu JID de teste
-    // -------------------------------
-    if (from !== JID_TESTE) return;
 
+    // -------------------------------
+    // FILTRO ROBUSTO: só responde ao seu JID de teste
+    // Remove o JID do device (ex: :12@s.whatsapp.net) para comparação
+    // -------------------------------
+    const fromBase = from.split(':')[0] + '@s.whatsapp.net';
+    
+    if (fromBase !== JID_TESTE) {
+        console.log(`[DEBUG] Filtrado. JID ${fromBase} não é o JID_TESTE.`);
+        return;
+    }
+    
     // EVITA AUTO-RESPOSTA PARA O PRÓPRIO NÚMERO DO BOT
-    if (from === gerente) return;
+    if (fromBase === gerente) return;
 
     // ============================
     // SOMENTE CLIENTES NOVOS RECEBEM O MENU AUTOMÁTICO
     // ============================
-    const jaAtendido = clienteJaAtendido(from);
+    const jaAtendido = clienteJaAtendido(fromBase);
 
     if (!jaAtendido) {
-      marcarComoAtendido(from);
+      marcarComoAtendido(fromBase);
 
       await sock.sendMessage(from, {
         text: `Olá! 👋 Como podemos ajudar?
