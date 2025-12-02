@@ -21,8 +21,9 @@ const luis = "5561998535931@s.whatsapp.net";
 const gerente = "5561998746380@s.whatsapp.net";
 
 // === JID AUTORIZADO PARA TESTE (SEU NÚMERO) ===
-// Número: 61981773957 (Formato JID: 5561981773957@s.whatsapp.net)
+// O bot só responderá a este número.
 const JID_TESTE = "5561981773957@s.whatsapp.net";
+const JID_DIGITOS = "5561981773957"; // Usado para o filtro robusto
 
 // === HORÁRIO DE FUNCIONAMENTO === (7h às 17h)
 function dentroDoHorario() {
@@ -144,6 +145,9 @@ async function startBot() {
       "";
     const texto = textoOriginal.trim();
 
+    // Remove o JID do device (ex: :12@s.whatsapp.net) para persistência
+    const fromBase = from.split(':')[0] + '@s.whatsapp.net';
+
     // -------------------------------
     // LOGS DE DEBUG
     // -------------------------------
@@ -153,13 +157,10 @@ async function startBot() {
 
 
     // -------------------------------
-    // FILTRO ROBUSTO: só responde ao seu JID de teste
-    // Remove o JID do device (ex: :12@s.whatsapp.net) para comparação
+    // FILTRO DE TESTE ROBUSTO: só responde ao seu número
     // -------------------------------
-    const fromBase = from.split(':')[0] + '@s.whatsapp.net';
-    
-    if (fromBase !== JID_TESTE) {
-        console.log(`[DEBUG] Filtrado. JID ${fromBase} não é o JID_TESTE.`);
+    if (!from.includes(JID_DIGITOS)) {
+        console.log(`[DEBUG] Filtrado. JID ${from} não contém os dígitos do JID_TESTE.`);
         return;
     }
     
