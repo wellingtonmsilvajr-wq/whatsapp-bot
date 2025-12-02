@@ -1,13 +1,22 @@
 import express from "express";
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import makeWASocket, {
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+} from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+let sock;
 let qrCodeImage = null;
 
-// Rota inicial
+// === TELEFONES DESTINO ===
+const financeiro = "5561998372346@s.whatsapp.net";
+const leia = "5561999149474@s.whatsapp.net";
+const luis = "5561998535931@s.whatsapp.net";
+
+// ROTA INICIAL
 app.get("/", (req, res) => {
   res.send(`
     <h1>Bot WhatsApp</h1>
@@ -16,7 +25,7 @@ app.get("/", (req, res) => {
   `);
 });
 
-// Rota do QR
+// ROTA DO QR
 app.get("/qr", (req, res) => {
   if (!qrCodeImage) {
     return res.send("<h2>Aguardando geração do QR...</h2>");
@@ -28,22 +37,23 @@ app.get("/qr", (req, res) => {
   `);
 });
 
+// === INÍCIO DO BOT ===
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestBaileysVersion();
 
-  const sock = makeWASocket({
+  sock = makeWASocket({
     version,
     printQRInTerminal: false,
-    auth: state
+    auth: state,
   });
 
-  // Atualização da conexão
+  // GERAR QR CODE
   sock.ev.on("connection.update", async (update) => {
     const { qr, connection } = update;
 
     if (qr) {
-      console.log("📌 QR gerado! Acesse /qr para escanear.");
+      console.log("📌 QR gerado! Acesse /qr para escanear");
       qrCodeImage = await qrcode.toDataURL(qr);
     }
 
@@ -53,17 +63,14 @@ async function startBot() {
     }
 
     if (connection === "close") {
-      console.log("❌ Conexão perdida. Tentando reconectar...");
+      console.log("❌ Conexão perdida. Tentando reconectar…");
       startBot();
     }
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  // ==============================
-  // 📌 RESPOSTA AUTOMÁTICA COM MENU
-  // ==============================
-
+  // === RECEBENDO MENSAGENS ===
   sock.ev.on("messages.upsert", async (msg) => {
     const message = msg.messages[0];
     if (!message.message) return;
@@ -74,107 +81,73 @@ async function startBot() {
       message.message.extendedTextMessage?.text ||
       "";
 
-    const clean = text.trim().toLowerCase();
+    console.log("📩 Mensagem recebida:", text);
 
-    console.log("Mensagem recebida:", text);
-
-    // Menu principal
-    if (
-      clean === "oi" ||
-      clean === "ola" ||
-      clean === "olá" ||
-      clean === "menu" ||
-      clean === "bom dia" ||
-      clean === "boa tarde" ||
-      clean === "boa noite"
-    ) {
+    // === MENU PRINCIPAL SEMPRE QUE QUALQUER MENSAGEM CHEGAR ===
+    if (text.trim() === "1") {
       await sock.sendMessage(from, {
-        text: `
-Olá! 👋  
-Escolha uma opção abaixo:
+        text: `Escolha o vendedor:
+
+1️⃣ - Falar com vendedora Léia  
+2️⃣ - Falar com vendedor Luís`,
+      });
+      return;
+    }
+
+    if (text.trim() === "2") {
+      await sock.sendMessage(financeiro, {
+        text: `📩 Nova mensagem encaminhada do cliente:\n\n"${text}"`,
+      });
+
+      await sock.sendMessage(from, {
+        text: "Encaminhei sua mensagem para o setor financeiro. Em breve eles retornarão!",
+      });
+      return;
+    }
+
+    if (text.trim() === "3") {
+      await sock.sendMessage(from, {
+        text: "Obrigado pelo contato! Assim que possível estarei retornando sua mensagem.",
+      });
+      return;
+    }
+
+    // === ESCOLHA DE VENDEDORES ===
+    if (text.trim() === "1️⃣" || text.trim() === "Léia" || text.trim() === "Leia") {
+      await sock.sendMessage(leia, {
+        text: `📩 Nova mensagem encaminhada automaticamente:\n\n"${text}"`,
+      });
+
+      await sock.sendMessage(from, {
+        text: "Encaminhei sua mensagem para a vendedora Léia! 📞",
+      });
+      return;
+    }
+
+    if (text.trim() === "2️⃣" || text.trim() === "Luis" || text.trim() === "Luís") {
+      await sock.sendMessage(luis, {
+        text: `📩 Nova mensagem encaminhada automaticamente:\n\n"${text}"`,
+      });
+
+      await sock.sendMessage(from, {
+        text: "Encaminhei sua mensagem para o vendedor Luís! 📞",
+      });
+      return;
+    }
+
+    // === RESPOSTA PARA QUALQUER TEXTO ===
+    await sock.sendMessage(from, {
+      text: `Olá! Selecione uma opção:
 
 1 - 📞 Falar com um vendedor  
 2 - 💰 Financeiro  
 3 - 🏭 Produção
-      `
-      });
-      return;
-    }
-
-    // ==============================
-    // OPÇÃO 1 - VENDEDOR
-    // ==============================
-    if (clean === "1") {
-      await sock.sendMessage(from, {
-        text: `
-Escolha o vendedor:
-
-1️⃣ - Falar com **Léia**  
-2️⃣ - Falar com **Luís**
-        `
-      });
-      return;
-    }
-
-    // Léia
-    if (clean === "1️⃣" || clean === "1 vende" || clean.includes("leia")) {
-      await sock.sendMessage(from, {
-        text: "🔄 Abrindo WhatsApp da atendente Léia..."
-      });
-
-      await sock.sendMessage(from, {
-        text: "https://wa.me/5561999149474"
-      });
-
-      return;
-    }
-
-    // Luís
-    if (clean === "2️⃣" || clean === "2 vende" || clean.includes("luis")) {
-      await sock.sendMessage(from, {
-        text: "🔄 Abrindo WhatsApp do atendente Luís..."
-      });
-
-      await sock.sendMessage(from, {
-        text: "https://wa.me/5561998535931"
-      });
-
-      return;
-    }
-
-    // ==============================
-    // OPÇÃO 2 - FINANCEIRO
-    // ==============================
-    if (clean === "2") {
-      await sock.sendMessage(from, {
-        text: "🔄 Abrindo WhatsApp do Financeiro..."
-      });
-
-      await sock.sendMessage(from, {
-        text: "https://wa.me/5561998372346"
-      });
-
-      return;
-    }
-
-    // ==============================
-    // OPÇÃO 3 - PRODUÇÃO
-    // ==============================
-    if (clean === "3") {
-      await sock.sendMessage(from, {
-        text: "🏭 Obrigado pelo contato! Assim que possível estarei retornando sua mensagem."
-      });
-
-      return;
-    }
-
-    // Resposta padrão
-    await sock.sendMessage(from, {
-      text: "Desculpe, não entendi 😕\n\nDigite *menu* para ver as opções novamente."
+`,
     });
   });
 }
 
 startBot();
 
-app.listen(PORT, () => console.log(`🌐 Servidor Web ativo na porta ${PORT}`));
+// Servidor web para o Render
+app.listen(PORT, () => console.log(`🌐 Servidor ativo na porta ${PORT}`));
