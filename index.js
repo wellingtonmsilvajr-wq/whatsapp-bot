@@ -132,18 +132,12 @@ async function startBot() {
 
   // ============================
   // RECEBENDO MENSAGENS
-  // ============================
-  sock.ev.on("messages.upsert", async (msg) => {
-    const message = msg.messages[0];
-    if (!message.message) return;
+// ============================
+sock.ev.on("messages.upsert", async (msg) => {
+    // ... código de extração de texto ...
 
-    const from = message.key.remoteJid;
-    const textoOriginal =
-      message.message.conversation ||
-      message.message.extendedTextMessage?.text ||
-      "";
-    const texto = textoOriginal.trim();
-
+    // ADICIONE ESTA LINHA TEMPORARIAMENTE:
+    console.log(`[DEBUG] JID do Remetente (from): ${from}`);
     console.log("📩 Mensagem recebida:", texto);
 
     // -------------------------------
