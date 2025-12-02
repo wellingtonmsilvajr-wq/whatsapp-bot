@@ -4,7 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
-import fs from "fs";
+import fs from "fs"; 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
