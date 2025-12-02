@@ -20,8 +20,9 @@ const luis = "5561998535931@s.whatsapp.net";
 // === GERENTE (número principal do bot) ===
 const gerente = "5561998746380@s.whatsapp.net";
 
-// === NOME AUTORIZADO PARA TESTE ===
-const NOME_TESTE = "Wellinton - Jato Luziania";
+// === JID AUTORIZADO PARA TESTE (SEU NÚMERO) ===
+// Número: 61981773957 (Formato JID: 5561981773957@s.whatsapp.net)
+const JID_TESTE = "5561981773957@s.whatsapp.net";
 
 // === HORÁRIO DE FUNCIONAMENTO === (7h às 17h)
 function dentroDoHorario() {
@@ -146,10 +147,9 @@ async function startBot() {
     console.log("📩 Mensagem recebida:", texto);
 
     // -------------------------------
-    // FILTRO: só responde ao seu nome
+    // FILTRO: só responde ao seu JID de teste
     // -------------------------------
-    const nomeContato = message.pushName || "";
-    if (nomeContato !== NOME_TESTE) return;
+    if (from !== JID_TESTE) return;
 
     // EVITA AUTO-RESPOSTA PARA O PRÓPRIO NÚMERO DO BOT
     if (from === gerente) return;
