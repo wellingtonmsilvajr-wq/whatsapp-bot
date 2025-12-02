@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
+import fs from "fs";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,8 +17,10 @@ const financeiro = "5561998372346@s.whatsapp.net";
 const leia = "5561999149474@s.whatsapp.net";
 const luis = "5561998535931@s.whatsapp.net";
 
-// === HORÁRIO DE FUNCIONAMENTO ===
-// 7h às 17h
+// === GERENTE (número principal do bot) ===
+const gerente = "5561998746380@s.whatsapp.net";
+
+// === HORÁRIO DE FUNCIONAMENTO === (7h às 17h)
 function dentroDoHorario() {
   const agora = new Date();
   const hora = agora.getHours();
@@ -33,7 +36,46 @@ Nosso horário é:
 Recebemos sua mensagem e retornaremos assim que possível! 😊
 `;
 
-// ROTA INICIAL
+// ============================
+// SISTEMA DE CLIENTES ATENDIDOS
+// ============================
+
+// Arquivo onde salvamos os clientes já atendidos
+const FILE_ATENDIDOS = "./clientes_atendidos.json";
+
+// Se o arquivo não existir, cria vazio
+if (!fs.existsSync(FILE_ATENDIDOS)) {
+  fs.writeFileSync(FILE_ATENDIDOS, JSON.stringify([]));
+}
+
+// Carrega os clientes atendidos
+function carregarClientes() {
+  try {
+    return JSON.parse(fs.readFileSync(FILE_ATENDIDOS, "utf8"));
+  } catch (error) {
+    return [];
+  }
+}
+
+// Salva o cliente como atendido
+function marcarComoAtendido(numero) {
+  const lista = carregarClientes();
+  if (!lista.includes(numero)) {
+    lista.push(numero);
+    fs.writeFileSync(FILE_ATENDIDOS, JSON.stringify(lista, null, 2));
+  }
+}
+
+// Verifica se já é um cliente antigo
+function clienteJaAtendido(numero) {
+  const lista = carregarClientes();
+  return lista.includes(numero);
+}
+
+// ============================
+// ROTAS WEB
+// ============================
+
 app.get("/", (req, res) => {
   res.send(`
     <h1>Bot WhatsApp</h1>
@@ -42,7 +84,6 @@ app.get("/", (req, res) => {
   `);
 });
 
-// ROTA DO QR
 app.get("/qr", (req, res) => {
   if (!qrCodeImage) {
     return res.send("<h2>Aguardando geração do QR...</h2>");
@@ -54,7 +95,10 @@ app.get("/qr", (req, res) => {
   `);
 });
 
-// === INÍCIO DO BOT ===
+// ============================
+// INÍCIO DO BOT
+// ============================
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestBaileysVersion();
@@ -65,7 +109,7 @@ async function startBot() {
     auth: state,
   });
 
-  // GERAR QR CODE
+  // QR CODE
   sock.ev.on("connection.update", async (update) => {
     const { qr, connection } = update;
 
@@ -75,19 +119,21 @@ async function startBot() {
     }
 
     if (connection === "open") {
-      console.log("✅ BOT CONECTADO AO WHATSAPP!");
+      console.log("✅ BOT CONECTADO!");
       qrCodeImage = null;
     }
 
     if (connection === "close") {
-      console.log("❌ Conexão perdida. Tentando reconectar…");
+      console.log("❌ Conexão caída. Reconectando…");
       startBot();
     }
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  // === RECEBENDO MENSAGENS ===
+  // ============================
+  // RECEBENDO MENSAGENS
+  // ============================
   sock.ev.on("messages.upsert", async (msg) => {
     const message = msg.messages[0];
     if (!message.message) return;
@@ -97,18 +143,45 @@ async function startBot() {
       message.message.conversation ||
       message.message.extendedTextMessage?.text ||
       "";
-
     const texto = textoOriginal.trim();
 
     console.log("📩 Mensagem recebida:", texto);
 
-    // === VERIFICA HORÁRIO ===
+    // EVITAR AUTO-RESPOSTA PARA MENSAGENS DO PRÓPRIO NÚMERO DO BOT
+    if (from === gerente) return;
+
+    // ============================
+    // SOMENTE CLIENTES NOVOS RECEBEM O MENU AUTOMÁTICO
+    // ============================
+    const jaAtendido = clienteJaAtendido(from);
+
+    if (!jaAtendido) {
+      // Marca como cliente novo
+      marcarComoAtendido(from);
+
+      // Envia menu e encerra
+      await sock.sendMessage(from, {
+        text: `Olá! 👋 Como podemos ajudar?
+
+1 - 📞 Falar com um vendedor  
+2 - 💰 Financeiro  
+3 - 🏭 Produção`,
+      });
+
+      return;
+    }
+
+    // ============================
+    // DAQUI PARA BAIXO É O MENU NORMAL
+    // ============================
+
+    // VERIFICA HORÁRIO
     if (!dentroDoHorario()) {
       await sock.sendMessage(from, { text: mensagemForaHorario });
       return;
     }
 
-    // === OPÇÃO 1 → ESCOLHER VENDEDOR ===
+    // OPÇÃO 1 — ESCOLHER VENDEDOR
     if (texto === "1") {
       await sock.sendMessage(from, {
         text: `Escolha o vendedor:
@@ -119,30 +192,34 @@ async function startBot() {
       return;
     }
 
-    // === OPÇÃO 2 → FINANCEIRO ===
+    // OPÇÃO 2 — FINANCEIRO
     if (texto === "2") {
       await sock.sendMessage(financeiro, {
         text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
-        text: "Encaminhei sua mensagem para o setor financeiro. Em breve eles retornarão!",
+        text: "Encaminhei sua mensagem para o financeiro! 💰",
       });
       return;
     }
 
-    // === OPÇÃO 3 → PRODUÇÃO ===
+    // OPÇÃO 3 — PRODUÇÃO (GERENTE)
     if (texto === "3") {
+      await sock.sendMessage(gerente, {
+        text: `📩 *Nova mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
+      });
+
       await sock.sendMessage(from, {
-        text: "Obrigado pelo contato! Assim que possível estarei retornando sua mensagem.",
+        text: "Encaminhei sua mensagem para o setor de produção! 🏭",
       });
       return;
     }
 
-    // === DIRECIONAMENTO PARA VENDEDORA LÉIA ===
+    // DIRECIONAR — LEIA
     if (["1️⃣", "Léia", "Leia", "leia", "léia"].includes(texto)) {
       await sock.sendMessage(leia, {
-        text: `📩 *Nova mensagem encaminhada automaticamente:*\n\n"${textoOriginal}"`,
+        text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
@@ -151,10 +228,10 @@ async function startBot() {
       return;
     }
 
-    // === DIRECIONAMENTO PARA VENDEDOR LUÍS ===
+    // DIRECIONAR — LUÍS
     if (["2️⃣", "Luis", "Luís", "luis", "luís"].includes(texto)) {
       await sock.sendMessage(luis, {
-        text: `📩 *Nova mensagem encaminhada automaticamente:*\n\n"${textoOriginal}"`,
+        text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
@@ -163,19 +240,19 @@ async function startBot() {
       return;
     }
 
-    // === MENU PADRÃO PARA QUALQUER MENSAGEM ===
+    // MENU PADRÃO
     await sock.sendMessage(from, {
       text: `Olá! Selecione uma opção:
 
 1 - 📞 Falar com um vendedor  
 2 - 💰 Financeiro  
-3 - 🏭 Produção
-`,
+3 - 🏭 Produção`,
     });
   });
 }
 
 startBot();
 
-// Servidor web para o Render
-app.listen(PORT, () => console.log(`🌐 Servidor ativo na porta ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🌐 Servidor ativo na porta ${PORT}`)
+);
