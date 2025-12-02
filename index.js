@@ -2,7 +2,7 @@ import express from "express";
 import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-} from "@whiskeysockets/baileys";
+} from "@whiskeysockets/baileys"; 
 import qrcode from "qrcode";
 import fs from "fs";
 
