@@ -16,6 +16,23 @@ const financeiro = "5561998372346@s.whatsapp.net";
 const leia = "5561999149474@s.whatsapp.net";
 const luis = "5561998535931@s.whatsapp.net";
 
+// === HORÁRIO DE FUNCIONAMENTO ===
+// 7h às 17h
+function dentroDoHorario() {
+  const agora = new Date();
+  const hora = agora.getHours();
+  return hora >= 7 && hora < 17;
+}
+
+const mensagemForaHorario = `
+⚠️ *Fora do horário de atendimento*
+
+Nosso horário é:
+🕒 *7h às 17h (segunda a sexta)*
+
+Recebemos sua mensagem e retornaremos assim que possível! 😊
+`;
+
 // ROTA INICIAL
 app.get("/", (req, res) => {
   res.send(`
@@ -76,15 +93,23 @@ async function startBot() {
     if (!message.message) return;
 
     const from = message.key.remoteJid;
-    const text =
+    const textoOriginal =
       message.message.conversation ||
       message.message.extendedTextMessage?.text ||
       "";
 
-    console.log("📩 Mensagem recebida:", text);
+    const texto = textoOriginal.trim();
 
-    // === MENU PRINCIPAL SEMPRE QUE QUALQUER MENSAGEM CHEGAR ===
-    if (text.trim() === "1") {
+    console.log("📩 Mensagem recebida:", texto);
+
+    // === VERIFICA HORÁRIO ===
+    if (!dentroDoHorario()) {
+      await sock.sendMessage(from, { text: mensagemForaHorario });
+      return;
+    }
+
+    // === OPÇÃO 1 → ESCOLHER VENDEDOR ===
+    if (texto === "1") {
       await sock.sendMessage(from, {
         text: `Escolha o vendedor:
 
@@ -94,9 +119,10 @@ async function startBot() {
       return;
     }
 
-    if (text.trim() === "2") {
+    // === OPÇÃO 2 → FINANCEIRO ===
+    if (texto === "2") {
       await sock.sendMessage(financeiro, {
-        text: `📩 Nova mensagem encaminhada do cliente:\n\n"${text}"`,
+        text: `📩 *Mensagem encaminhada automaticamente*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
@@ -105,17 +131,18 @@ async function startBot() {
       return;
     }
 
-    if (text.trim() === "3") {
+    // === OPÇÃO 3 → PRODUÇÃO ===
+    if (texto === "3") {
       await sock.sendMessage(from, {
         text: "Obrigado pelo contato! Assim que possível estarei retornando sua mensagem.",
       });
       return;
     }
 
-    // === ESCOLHA DE VENDEDORES ===
-    if (text.trim() === "1️⃣" || text.trim() === "Léia" || text.trim() === "Leia") {
+    // === DIRECIONAMENTO PARA VENDEDORA LÉIA ===
+    if (["1️⃣", "Léia", "Leia", "leia", "léia"].includes(texto)) {
       await sock.sendMessage(leia, {
-        text: `📩 Nova mensagem encaminhada automaticamente:\n\n"${text}"`,
+        text: `📩 *Nova mensagem encaminhada automaticamente:*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
@@ -124,9 +151,10 @@ async function startBot() {
       return;
     }
 
-    if (text.trim() === "2️⃣" || text.trim() === "Luis" || text.trim() === "Luís") {
+    // === DIRECIONAMENTO PARA VENDEDOR LUÍS ===
+    if (["2️⃣", "Luis", "Luís", "luis", "luís"].includes(texto)) {
       await sock.sendMessage(luis, {
-        text: `📩 Nova mensagem encaminhada automaticamente:\n\n"${text}"`,
+        text: `📩 *Nova mensagem encaminhada automaticamente:*\n\n"${textoOriginal}"`,
       });
 
       await sock.sendMessage(from, {
@@ -135,7 +163,7 @@ async function startBot() {
       return;
     }
 
-    // === RESPOSTA PARA QUALQUER TEXTO ===
+    // === MENU PADRÃO PARA QUALQUER MENSAGEM ===
     await sock.sendMessage(from, {
       text: `Olá! Selecione uma opção:
 
